@@ -1,0 +1,11 @@
+63:00.0 Processing accelerators [1200]: IBM Device [1014:06a7] (rev 02)
+	DevCtl:	CorrErr- NonFatalErr+ FatalErr+ UnsupReq-
+		RlxdOrd+ ExtTag+ PhantFunc- AuxPwr- NoSnoop- FLReset-
+		MaxPayload 512 bytes, MaxReadReq 512 bytes
+	LnkSta:	Speed 32GT/s (ok), Width x16 (ok)
+
+2b:00.0 1200: 1014:06a7 (rev 02)
+	DevCtl:	CorrErr- NonFatalErr- FatalErr+ UnsupReq-
+		RlxdOrd+ ExtTag+ PhantFunc- AuxPwr- NoSnoop- FLReset-
+		MaxPayload 512 bytes, MaxReadReq 4096 bytes
+	LnkSta:	Speed 32GT/s (ok), Width x16 (ok)
