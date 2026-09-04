@@ -1,0 +1,9 @@
+.vscode
+.idea
+__pycache__
+bin
+RPM-GPG-KEY-IBM-SPYRE
+artifactory.repo
+.mypy_cache
+.pytest_cache
+venv

@@ -1,0 +1,5 @@
+prometheus_client==0.20.0
+pybind11==2.13.1
+psutil==7.0.0
+numpy==1.26.4
+spyremetrics>=0.5.0

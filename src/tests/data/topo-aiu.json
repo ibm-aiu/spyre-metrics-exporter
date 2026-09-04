@@ -1,0 +1,30 @@
+{
+    "devices": {
+        "0000:01:00.0": {
+            "name": "AIU Device 06a7 (rev 02)",
+            "numanode": -1,
+            "linkspeed": "63.02 GB/s",
+            "protocol": {
+                "0000:02:00.0": ["P2PDMA", "HDMA"]
+            },
+            "metadata": null
+        },
+        "0000:02:00.0": {
+            "name": "AIU Device 06a7 (rev 02)",
+            "numanode": -1,
+            "linkspeed": "63.02 GB/s",
+            "protocol": {
+                "0000:01:00.0": ["P2PDMA", "HDMA"]
+            },
+            "metadata": null
+        }
+    },
+    "num_devices": 2,
+    "nvme_devices": {},
+    "nvme_num_devices": 0,
+    "nic_devices": null,
+    "nic_num_devices": 0,
+    "server": "test-server",
+    "timestamp": "2025-01-01T00:00:00",
+    "version": 2
+}

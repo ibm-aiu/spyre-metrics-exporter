@@ -1,0 +1,17 @@
+0483:70:00.0 Processing accelerators [1200]: IBM Spyre Accelerator [1014:06a7] (rev 02)
+	DevCtl:	CorrErr+ NonFatalErr+ FatalErr+ UnsupReq+
+		RlxdOrd+ ExtTag+ PhantFunc- AuxPwr- NoSnoop- FLReset-
+		MaxPayload 512 bytes, MaxReadReq 4096 bytes
+	LnkSta:	Speed 16GT/s (downgraded), Width x16 (ok)
+
+0484:80:00.0 Processing accelerators [1200]: IBM Spyre Accelerator [1014:06a7] (rev 02)
+	DevCtl:	CorrErr- NonFatalErr+ FatalErr+ UnsupReq+
+		RlxdOrd+ ExtTag+ PhantFunc- AuxPwr- NoSnoop- FLReset-
+		MaxPayload 512 bytes, MaxReadReq 4096 bytes
+	LnkSta:	Speed 16GT/s (downgraded), Width x16 (ok)
+
+0485:90:00.0 Processing accelerators [1200]: IBM Spyre Accelerator [1014:06a7] (rev 02)
+	DevCtl:	CorrErr- NonFatalErr+ FatalErr+ UnsupReq+
+		RlxdOrd+ ExtTag+ PhantFunc- AuxPwr- NoSnoop- FLReset-
+		MaxPayload 512 bytes, MaxReadReq 4096 bytes
+	LnkSta:	Speed 16GT/s (downgraded), Width x8 (downgraded)

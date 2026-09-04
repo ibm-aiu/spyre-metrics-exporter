@@ -1,0 +1,56 @@
+{
+    "devices": {
+        "0000:01:00.0": {
+            "name": "SPYRE Device 06a7 (rev 02)",
+            "numanode": 0,
+            "linkspeed": "63.02 GB/s",
+            "protocol": {
+                "0000:02:00.0": ["P2PDMA", "HDMA", "v_P2PDMA"]
+            },
+            "metadata": {
+                "Clocks": {
+                    "SOC": "560.0 MHz",
+                    "RPD": "800.0 MHz"
+                },
+                "Memory": {
+                    "Boostable": false,
+                    "Freq": "800 MHz",
+                    "Make": "Maker",
+                    "Size": "112.0 GB",
+                    "Speed": "6400.0 Mbps"
+                },
+                "SerialID": "TEST0001"
+            }
+        },
+        "0000:02:00.0": {
+            "name": "SPYRE Device 06a7 (rev 02)",
+            "numanode": 0,
+            "linkspeed": "63.02 GB/s",
+            "protocol": {
+                "0000:01:00.0": ["P2PDMA", "HDMA", "v_P2PDMA"]
+            },
+            "metadata": {
+                "Clocks": {
+                    "SOC": "560.0 MHz",
+                    "RPD": "800.0 MHz"
+                },
+                "Memory": {
+                    "Boostable": false,
+                    "Freq": "800 MHz",
+                    "Make": "Maker",
+                    "Size": "112.0 GB",
+                    "Speed": "6400.0 Mbps"
+                },
+                "SerialID": "TEST0002"
+            }
+        }
+    },
+    "num_devices": 2,
+    "nvme_devices": {},
+    "nvme_num_devices": 0,
+    "nic_devices": null,
+    "nic_num_devices": 0,
+    "server": "test-server",
+    "timestamp": "2025-01-01T00:00:00",
+    "version": 2
+}
