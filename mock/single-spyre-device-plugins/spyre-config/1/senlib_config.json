@@ -1,0 +1,12 @@
+{
+    "GENERAL": {
+        "target": "SOC",
+        "sen_bus_id": ["01.1"]
+    },
+    "METRICS": {
+        "general": {
+            "enable": true,
+            "path": "/tmp/spyre-metrics/metrics.%BUSID"
+        }
+    }
+}

@@ -1,0 +1,8 @@
+##############################################################
+#
+# List of approvers/reviewers
+#
+##############################################################
+
+# Updates must be approved by listed active maintainers.
+@ibm-aiu/aiu-operator-owners
