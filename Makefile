@@ -98,12 +98,12 @@ docker-mock-user-build: vendor ## Build spyre device plugin init image for build
 
 # ------------------------------------------------------------------------------------
 # Python Tests
-# require: pip install mypy pytest
 # ------------------------------------------------------------------------------------
 
 .PHONY: python-test
 python-test:
-	pytest --verbose
+	$(PIP) install -r requirements-dev.txt -q
+	pytest --verbose --cov=src --cov-report=xml:coverage.xml --cov-report=term-missing
 
 pyclean:
 	@find . -name .mypy_cache -exec rm -rf {} +
