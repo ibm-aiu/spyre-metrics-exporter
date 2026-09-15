@@ -7,3 +7,4 @@ artifactory.repo
 .mypy_cache
 .pytest_cache
 venv
+coverage.xml

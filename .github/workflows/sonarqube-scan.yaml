@@ -30,9 +30,16 @@ jobs:
         go-version-file: 'go.mod'
         cache: true
 
-    - name: Run tests with coverage
-      run: |
-        make test
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install Python dependencies
+      run: pip install -r requirements.txt -r requirements-dev.txt
+
+    - name: Run Python tests with coverage
+      run: make python-test
       continue-on-error: true
 
     - name: Create Truststore
@@ -57,8 +64,9 @@ jobs:
           -Dsonar.projectName="${{ github.repository }}"
           -Dsonar.sources=.
           -Dsonar.tests=.
-          -Dsonar.test.inclusions=**/*_test.go
+          -Dsonar.test.inclusions=**/*_test.py
           -Dsonar.go.coverage.reportPaths=coverage.out
+          -Dsonar.python.coverage.reportPaths=coverage.xml
           -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }}
           -Dsonar.branch.name=${{ github.ref_name }}
           -Dsonar.scanner.truststorePath=${{ github.workspace }}/certs/castorevpcprod
@@ -73,8 +81,9 @@ jobs:
           -Dsonar.projectName="${{ github.repository }}"
           -Dsonar.sources=.
           -Dsonar.tests=.
-          -Dsonar.test.inclusions=**/*_test.go
+          -Dsonar.test.inclusions=**/*_test.py
           -Dsonar.go.coverage.reportPaths=coverage.out
+          -Dsonar.python.coverage.reportPaths=coverage.xml
           -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }}
           -Dsonar.pullrequest.key=${{ github.event.pull_request.number }}
           -Dsonar.pullrequest.branch=${{ github.head_ref }}
