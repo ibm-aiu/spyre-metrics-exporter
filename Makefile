@@ -89,7 +89,7 @@ docker-build-push: docker-build docker-push ## Build and push the spyre device p
 
 .PHONY: docker-mock-user-build
 docker-mock-user-build: vendor ## Build spyre device plugin init image for build host architecture
-	podman build $(DOCKER_BUILD_OPTS) --pull \
+	$(DOCKER) build $(DOCKER_BUILD_OPTS) --pull \
 		--tag $(MOCK_USER_IMG) \
 		--file $(REPO_ROOT)/mock/Dockerfile .
 
