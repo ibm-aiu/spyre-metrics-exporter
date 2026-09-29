@@ -7,9 +7,7 @@ import os
 import sys
 import types
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 # ---------------------------------------------------------------------------
 # Stub `spyremetrics` before any project import touches it
@@ -191,3 +189,58 @@ class TestUpdatePcie:
 
         exporter.update_pcie()
         assert exporter.pcie_info_collection == {}
+
+
+# ---------------------------------------------------------------------------
+# add_metadata_information_to_prometheus
+# ---------------------------------------------------------------------------
+
+class TestAddMetadataInformationToBranchCoverage:
+    def test_non_dict_topo_content_is_handled_gracefully(self, tmp_path, monkeypatch):
+        """topo.json that is a JSON array (not object) must warn and return early."""
+        topo_file = tmp_path / "topo.json"
+        topo_file.write_text(json.dumps([1, 2, 3]))
+        monkeypatch.setattr(exporter, "topology_file_path", str(topo_file))
+        exporter.gauges.clear()
+        exporter.add_metadata_information_to_prometheus()  # must not raise
+        assert exporter.gauges == []
+
+    def test_explicit_devices_null_is_handled_gracefully(self, tmp_path, monkeypatch):
+        """topo.json with \"devices\": null must warn and not call parse."""
+        topo_file = tmp_path / "topo.json"
+        topo_file.write_text(json.dumps({"devices": None}))
+        monkeypatch.setattr(exporter, "topology_file_path", str(topo_file))
+
+        parse_called = []
+        monkeypatch.setattr(exporter, "parse_spyre_topology", lambda d: parse_called.append(d))
+
+        exporter.gauges.clear()
+        exporter.add_metadata_information_to_prometheus()
+        assert parse_called == []
+        assert exporter.gauges == []
+
+
+# ---------------------------------------------------------------------------
+# init_prometheus_monitor
+# ---------------------------------------------------------------------------
+
+class TestInitPrometheusMonitor:
+    def test_calls_add_metadata_and_starts_server(self, monkeypatch):
+        """init_prometheus_monitor must call add_metadata, init_gauges, and start_http_server."""
+        add_meta_called = []
+        init_gauges_called = []
+        start_server_called = []
+
+        monkeypatch.setattr(exporter, "add_metadata_information_to_prometheus",
+                            lambda: add_meta_called.append(True))
+        monkeypatch.setattr(exporter, "init_gauges",
+                            lambda: init_gauges_called.append(True))
+        monkeypatch.setattr(exporter, "start_http_server",
+                            lambda port: start_server_called.append(port))
+
+        exporter.gauges.clear()
+        exporter.init_prometheus_monitor()
+
+        assert add_meta_called == [True]
+        assert init_gauges_called == [True]
+        assert start_server_called == [exporter.prom_port]

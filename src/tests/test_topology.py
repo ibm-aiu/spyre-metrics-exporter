@@ -7,7 +7,6 @@ from pathlib import Path
 
 import topology
 
-
 def load_topo(filename):
     path = Path(__file__).resolve().parent / filename
     with open(path) as f:
@@ -133,3 +132,84 @@ class TestParseTopoSpyre:
                  for s in _collected_samples(topology.connection_info_gauge)]
         assert len(pairs) == len(set(pairs))
         assert len(pairs) == 28  # 8 * 7 / 2
+
+
+# ---------------------------------------------------------------------------
+# _resolve_protocol
+# ---------------------------------------------------------------------------
+
+class TestResolveProtocol:
+    def test_none_protocol_returns_na(self, capsys):
+        """None protocols must print a warning and return 'NA'."""
+        result = topology._resolve_protocol("0000:01:00.0", "0000:02:00.0", None)
+        assert result == "NA"
+        captured = capsys.readouterr()
+        assert "WARNING" in captured.out
+
+    def test_unknown_protocol_returns_na(self):
+        """An unrecognised protocol string must return 'NA'."""
+        result = topology._resolve_protocol("0000:01:00.0", "0000:02:00.0", "UNKNOWN")
+        assert result == "NA"
+
+    def test_p2pdma_recognised(self):
+        result = topology._resolve_protocol("a", "b", "P2PDMA")
+        assert result == "P2PDMA"
+
+    def test_v_p2pdma_falls_through_to_p2pdma(self):
+        # "v_P2PDMA" contains the substring "P2PDMA", so the P2PDMA branch fires first.
+        result = topology._resolve_protocol("a", "b", "v_P2PDMA")
+        assert result == "P2PDMA"
+
+    def test_hdma_recognised(self):
+        result = topology._resolve_protocol("a", "b", "HDMA")
+        assert result == "HDMA"
+
+
+# ---------------------------------------------------------------------------
+# _record_device — skip non-SPYRE/non-AIU devices
+# ---------------------------------------------------------------------------
+
+class TestRecordDeviceSkipsNonSpyre:
+    def test_non_spyre_device_emits_no_gauge(self):
+        """A device whose name contains neither SPYRE nor AIU must be skipped."""
+        topology.info_gauge.clear()
+        topology.metadata_gauge.clear()
+        topology._record_device("0000:ff:00.0", {"name": "Some Other Device"}, set())
+        assert _collected_samples(topology.info_gauge) == []
+        assert _collected_samples(topology.metadata_gauge) == []
+
+    def test_empty_name_is_skipped(self):
+        topology.info_gauge.clear()
+        topology._record_device("0000:ff:00.0", {"name": ""}, set())
+        assert _collected_samples(topology.info_gauge) == []
+
+    def test_missing_name_key_is_skipped(self):
+        topology.info_gauge.clear()
+        topology._record_device("0000:ff:00.0", {}, set())
+        assert _collected_samples(topology.info_gauge) == []
+
+
+# ---------------------------------------------------------------------------
+# parse_spyre_topology edge cases
+# ---------------------------------------------------------------------------
+
+class TestParseSpyreTopologyEdgeCases:
+    def test_none_devices_prints_warning(self, capsys):
+        """devices=None must print a WARNING and not raise."""
+        topology.parse_spyre_topology(None)
+        captured = capsys.readouterr()
+        assert "WARNING" in captured.out
+
+    def test_empty_devices_dict_is_noop(self):
+        """An empty dict must silently return without touching gauges."""
+        topology.info_gauge.clear()
+        topology.parse_spyre_topology({})
+        assert _collected_samples(topology.info_gauge) == []
+
+    def test_none_device_entry_prints_warning(self, capsys):
+        """A device entry that is None must print a WARNING and be skipped."""
+        topology.info_gauge.clear()
+        topology.parse_spyre_topology({"0000:01:00.0": None})
+        captured = capsys.readouterr()
+        assert "WARNING" in captured.out
+        assert _collected_samples(topology.info_gauge) == []
