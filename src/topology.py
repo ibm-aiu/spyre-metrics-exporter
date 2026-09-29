@@ -16,6 +16,68 @@ metadata_gauge = Gauge('spyre_info_metadata', 'Spyre device metadata information
 # src=0000:29:00.0 dst=0000:aa:00.0 numa=0 protocol=HDMA
 connection_info_gauge = Gauge('spyre_info_connection_protocol', 'Spyre device connection information', ['node', 'src_addr', 'dst_addr', 'protocol'])
 
+def _resolve_protocol(src_pci, dst_pci, protocols):
+    """Return the protocol label string for a src/dst pair."""
+    if protocols is None:
+        print(f"WARNING: protocol info for src={src_pci} dst={dst_pci} is None; "
+              "treating as unknown protocol")
+        protocols = ""
+    if "P2PDMA" in protocols:
+        return "P2PDMA"
+    if "v_P2PDMA" in protocols:
+        return "v_P2PDMA"
+    if "HDMA" in protocols:
+        return "HDMA"
+    return "NA"
+
+
+def _record_connections(src_pci, src_protocols, processed_pairs):
+    """Emit connection_info_gauge for each unprocessed (src, dst) pair."""
+    for dst_pci, protocols in src_protocols.items():
+        pair = tuple(sorted([src_pci, dst_pci]))
+        if pair in processed_pairs:
+            continue
+        processed_pairs.add(pair)
+        protocol = _resolve_protocol(src_pci, dst_pci, protocols)
+        connection_info_gauge.labels(
+            node=node_name, src_addr=src_pci, dst_addr=dst_pci, protocol=protocol
+        ).set(1)
+
+
+def _record_device(src_pci, src_info, processed_pairs):
+    """Emit info/metadata/connection gauges for a single SPYRE/AIU device."""
+    name = src_info.get("name") or ""
+    if "SPYRE" not in name.upper() and "AIU" not in name.upper():
+        return  # skip non-SPYRE or non-AIU devices
+
+    src_numa = src_info.get("numanode", "-1")
+    src_linkspeed = src_info.get("linkspeed", "NA")
+
+    src_protocols = src_info.get("protocol") or {}
+    if src_protocols:
+        _record_connections(src_pci, src_protocols, processed_pairs)
+
+    src_metadata = src_info.get("metadata") or {}
+    soc_clock = src_metadata.get("Clocks", {}).get("SOC", "NA")
+    rpd_clock = src_metadata.get("Clocks", {}).get("RPD", "NA")
+    boost = src_metadata.get("Memory", {}).get("Boostable", "NA")
+    dram_freq = src_metadata.get("Memory", {}).get("Freq", "NA")
+    ddr_speed = src_metadata.get("Memory", {}).get("Speed", "NA")
+    ddr_avail = src_metadata.get("Memory", {}).get("Size", "NA")
+    mem = src_metadata.get("Memory", {}).get("Make", "NA")
+    serial_id = src_metadata.get("SerialID", "NA")
+
+    metadata_gauge.labels(
+        node=node_name, addr=src_pci,
+        SOC_Clock=soc_clock, RPD_Clock=rpd_clock, Mem=mem,
+        DDR_Speed=ddr_speed, DRAM_Freq=dram_freq, DDR_Avail=ddr_avail,
+        Boost=boost, SerialID=serial_id,
+    ).set(1)
+    info_gauge.labels(
+        node=node_name, addr=src_pci, numanode=src_numa, name=name, linkspeed=src_linkspeed
+    ).set(1)
+
+
 def parse_spyre_topology(devices):
     if devices is None:
         print("WARNING: parse_spyre_topology got devices=None "
@@ -29,43 +91,4 @@ def parse_spyre_topology(devices):
         if src_info is None:
             print(f"WARNING: device entry for {src_pci} is None in topo.json; skipping this device")
             continue
-        name = src_info.get("name") or ""
-        if "SPYRE" not in name.upper() and "AIU" not in name.upper():
-            continue  # skip non-SPYRE or non-AIU devices
-
-        src_numa = src_info.get("numanode", "-1")
-        src_linkspeed = src_info.get("linkspeed", "NA")
-        src_protocols = src_info.get("protocol") or {}
-        if src_protocols:
-            for dst_pci, protocols in src_protocols.items():
-                if protocols is None:
-                    print(f"WARNING: protocol info for src={src_pci} dst={dst_pci} is None; "
-                          "treating as unknown protocol")
-                    protocols = ""
-                if "P2PDMA" in protocols:
-                    protocol = "P2PDMA"
-                elif "v_P2PDMA" in protocols:
-                    protocol = "v_P2PDMA"
-                elif "HDMA" in protocols:
-                    protocol = "HDMA"
-                else:
-                    protocol = "NA"
-
-                pair = tuple(sorted([src_pci, dst_pci]))
-                if pair not in processed_pairs:
-                    processed_pairs.add(pair)
-                    connection_info_gauge.labels(node=node_name, src_addr=src_pci, dst_addr=dst_pci, protocol=protocol).set(1)
-        src_metadata = src_info.get("metadata", {})
-        if src_metadata is None:
-            src_metadata = {}
-        SOC_Clock = src_metadata.get("Clocks", {}).get("SOC", "NA")
-        RPD_Clock = src_metadata.get("Clocks", {}).get("RPD", "NA")
-        Boost = src_metadata.get("Memory", {}).get("Boostable", "NA")
-        DRAM_Freq = src_metadata.get("Memory", {}).get("Freq", "NA")
-        DDR_Speed = src_metadata.get("Memory", {}).get("Speed", "NA")
-        DDR_Avail = src_metadata.get("Memory", {}).get("Size", "NA")
-        Mem = src_metadata.get("Memory", {}).get("Make", "NA")
-        SerialID = src_metadata.get("SerialID", "NA")
-
-        metadata_gauge.labels(node=node_name, addr=src_pci, SOC_Clock=SOC_Clock, RPD_Clock=RPD_Clock, Mem=Mem, DDR_Speed=DDR_Speed, DRAM_Freq=DRAM_Freq, DDR_Avail=DDR_Avail, Boost=Boost, SerialID=SerialID).set(1)
-        info_gauge.labels(node=node_name, addr=src_pci, numanode=src_numa, name=name, linkspeed=src_linkspeed).set(1)
+        _record_device(src_pci, src_info, processed_pairs)
