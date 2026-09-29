@@ -75,8 +75,6 @@ def init_prometheus_monitor():
         gauges.append(gauge)
     gauges.append(pod_spyre_gauge)
     gauges.append(PCIE_GAUGE)
-    gauges.append(info_gauge)
-    gauges.append(connection_info_gauge)
     start_http_server(prom_port)
 
 def add_metadata_information_to_prometheus():
@@ -85,10 +83,20 @@ def add_metadata_information_to_prometheus():
         with open(topology_file_path, 'r') as f:
             data =json.load(f)
     except Exception as e:
-        print("Failed to get metadata from topo.json {}, skip".format(e))
+        print("WARNING: failed to read/parse topo.json ({}); skipping metadata for this cycle".format(e))
         return
-    devices = data.get("devices", {})
+    if not isinstance(data, dict):
+        print(f"WARNING: topo.json content is not a JSON object (got {type(data).__name__}); "
+              "skipping metadata for this cycle")
+        return
+    devices_raw = data.get("devices")
+    if devices_raw is None and "devices" in data:
+        print("WARNING: topo.json has \"devices\": null; no topology metrics will be recorded this cycle")
+        return
+    devices = devices_raw or {}
     gauges.append(metadata_gauge)
+    gauges.append(info_gauge)
+    gauges.append(connection_info_gauge)
     parse_spyre_topology(devices)
 
 if __name__ == "__main__":

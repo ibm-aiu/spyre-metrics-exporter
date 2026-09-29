@@ -17,17 +17,31 @@ metadata_gauge = Gauge('spyre_info_metadata', 'Spyre device metadata information
 connection_info_gauge = Gauge('spyre_info_connection_protocol', 'Spyre device connection information', ['node', 'src_addr', 'dst_addr', 'protocol'])
 
 def parse_spyre_topology(devices):
+    if devices is None:
+        print("WARNING: parse_spyre_topology got devices=None "
+              "(topo.json may have an explicit \"devices\": null, or device discovery returned nothing); "
+              "skipping topology metrics for this cycle")
+        return
+    if not devices:
+        return
     processed_pairs = set()
     for src_pci, src_info in devices.items():
-        name = src_info.get("name", "")
+        if src_info is None:
+            print(f"WARNING: device entry for {src_pci} is None in topo.json; skipping this device")
+            continue
+        name = src_info.get("name") or ""
         if "SPYRE" not in name.upper() and "AIU" not in name.upper():
             continue  # skip non-SPYRE or non-AIU devices
 
         src_numa = src_info.get("numanode", "-1")
         src_linkspeed = src_info.get("linkspeed", "NA")
-        src_protocols = src_info.get("protocol", {})
+        src_protocols = src_info.get("protocol") or {}
         if src_protocols:
             for dst_pci, protocols in src_protocols.items():
+                if protocols is None:
+                    print(f"WARNING: protocol info for src={src_pci} dst={dst_pci} is None; "
+                          "treating as unknown protocol")
+                    protocols = ""
                 if "P2PDMA" in protocols:
                     protocol = "P2PDMA"
                 elif "v_P2PDMA" in protocols:
