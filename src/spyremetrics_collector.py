@@ -5,7 +5,16 @@
 from typing import Any
 import os
 import json
+import threading
+import time
 import numpy as np
+
+from metric_discovery import (
+    DEFAULT_METRIC_PATH,
+    SPYRE_METRIC_PATH_ENV,
+    diff_discovered,
+    discover,
+)
 
 senlib_config_file = os.getenv("CONFIG_FILENAME", "senlib_config.json")
 local_metric_file_prefix = "metrics."
@@ -219,3 +228,159 @@ class spyre_map_info():
         if not os.path.exists(self.config_file):
             return 0
         return 1
+
+
+# Poll interval for reading metric files. Matches the libaiupti sampling
+# interval selected by AIUPTI_ENABLE_METRICS.
+scanned_default_poll_interval = 1.0
+scanned_fast_poll_interval = 0.1
+# Metric files are re-enumerated less often than they are read, so hot-plugged
+# devices are picked up without listing the directory on every poll.
+rediscovery_interval = 10.0
+
+
+class ScannedMetrics():
+    """Publishes metric files found by path-template discovery.
+
+    spyre_map_info can only see devices that a senlib_config.json under
+    /tmp/spyre-config/<uuid>/ enumerates. When that config is missing, does not
+    list a Bus ID, or is regenerated with metrics disabled, the device still
+    writes metrics but the exporter would never look at them.
+
+    This class scans the tree described by SPYRE_METRIC_PATH, falling back to
+    DEFAULT_METRIC_PATH, and publishes what it finds on the same spyre_* gauges
+    the config-driven path writes, with type="vf" or type="pf" from the file
+    format. Bus IDs already owned by spyre_map_info are skipped, so a device is
+    never published twice with different labels.
+    """
+
+    def __init__(self, metric_path=None, config_owned_provider=None):
+        self.metric_path = metric_path if metric_path is not None else os.getenv(SPYRE_METRIC_PATH_ENV, DEFAULT_METRIC_PATH)
+        self.config_owned_provider = config_owned_provider
+        self.files = {}
+        # busid -> (type, pod_name, pod_namespace) set on the spyre_* gauges
+        self.published = {}
+        self.last_discovery = 0.0
+        self.running = False
+        self.thread = None
+
+    @property
+    def enabled(self):
+        return bool(self.metric_path)
+
+    @property
+    def poll_interval(self):
+        if os.getenv("AIUPTI_ENABLE_METRICS", "false").lower() == "true":
+            return scanned_fast_poll_interval
+        return scanned_default_poll_interval
+
+    def refresh(self):
+        """Re-enumerate metric files and release devices that are gone or taken over."""
+        if not self.enabled:
+            return
+        config_owned = self.config_owned_provider() if self.config_owned_provider else {}
+        current = discover(self.metric_path)
+
+        added, removed = diff_discovered(self.files, current)
+        for busid in removed:
+            self.release(busid)
+        # keys() & keys() builds a set first, so hand_over() may mutate the dict
+        # while this loop runs.
+        for busid in self.published.keys() & config_owned.keys():
+            self.hand_over(busid, config_owned[busid])
+        for busid in added:
+            ref = current[busid]
+            print(f"scanned metrics: + {ref.path} (busid={busid}, strategy={ref.strategy})")
+
+        self.files = current
+        self.last_discovery = time.time()
+
+    def read(self):
+        """Read every discovered metric file and update the gauges.
+
+        Only Bus IDs the config-driven collector does not own are published, so
+        a device never appears twice with different labels.
+        """
+        config_owned = self.config_owned_provider() if self.config_owned_provider else {}
+        for busid, ref in self.files.items():
+            if busid in config_owned:
+                continue
+            try:
+                self.read_one(busid, ref)
+            except Exception as e:
+                print(f"scanned metrics: read error {ref.path} (busid={busid}): {e}")
+
+    def read_one(self, busid, ref):
+        """Publish one metric file on the spyre_* gauges."""
+        with MetricFile(ref.path) as metric_file:
+            metric_type = "pf" if metric_file.is_old_format else "vf"
+            # Record the labels before setting values: if a metric raises halfway
+            # through, release() still knows what to remove.
+            self.published[busid] = (metric_type, ref.pod_name, ref.pod_namespace)
+            for metric, value in metric_file.read_metrics():
+                self.set_spyre_gauge(busid, ref, metric, value, metric_type)
+
+    @staticmethod
+    def set_spyre_gauge(busid, ref, metric, value, metric_type):
+        gauge = spyre_metrics_guages.get(metric.name)
+        if gauge is not None:
+            gauge.labels(spyre=busid, type=metric_type, pod=ref.pod_name,
+                         namespace=ref.pod_namespace, node=node_name).set(value)
+
+    def release(self, busid):
+        """Remove every series a Bus ID had set, because its file vanished."""
+        published = self.published.pop(busid, None)
+        if published is not None:
+            self.remove_spyre_labels(busid, *published)
+        print(f"scanned metrics: - {busid}")
+
+    def hand_over(self, busid, new_owner_labels):
+        """Give up a Bus ID when the config-driven collector takes it over.
+
+        If spyre_map_info uses the same pod and namespace this class used, the
+        labels are left in place: removing them would delete the series it is
+        now writing.
+        """
+        published = self.published.pop(busid, None)
+        if published is None:
+            return
+        if new_owner_labels is not None and published[1:] == tuple(new_owner_labels):
+            print(f"scanned metrics: {busid} series handed over to the config-driven collector")
+        else:
+            self.remove_spyre_labels(busid, *published)
+
+    def remove_spyre_labels(self, busid, metric_type, pod_name, pod_namespace):
+        for metric_guage in spyre_metrics_guages.keys():
+            try:
+                spyre_metrics_guages[metric_guage].remove(busid, metric_type, pod_name, pod_namespace, node_name)
+            except (KeyError, ValueError) as e:
+                print(f"skip removing label {busid}/{metric_type} from {metric_guage}: {e}")
+
+    def start(self):
+        if not self.enabled:
+            print(f"scanned metrics: {SPYRE_METRIC_PATH_ENV} is not set, discovery disabled")
+            return
+        if self.running:
+            return
+        self.running = True
+        self.thread = threading.Thread(target=self.poll_loop, daemon=True, name="ScannedMetrics")
+        self.thread.start()
+        print(f"scanned metrics: started path={self.metric_path} interval={self.poll_interval}s")
+
+    def stop(self):
+        if not self.running:
+            return
+        self.running = False
+        if self.thread is not None:
+            self.thread.join(timeout=5.0)
+
+    def poll_loop(self):
+        self.refresh()
+        while self.running:
+            start = time.time()
+            self.read()
+            if (time.time() - self.last_discovery) >= rediscovery_interval:
+                self.refresh()
+            remaining = self.poll_interval - (time.time() - start)
+            if remaining > 0:
+                time.sleep(remaining)

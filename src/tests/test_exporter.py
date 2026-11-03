@@ -230,11 +230,20 @@ class TestInitPrometheusMonitor:
         add_meta_called = []
         init_gauges_called = []
         start_server_called = []
+        scanned_started = []
+
+        class _StubScannedMetrics:
+            def __init__(self, **kwargs):
+                pass
+
+            def start(self):
+                scanned_started.append(True)
 
         monkeypatch.setattr(exporter, "add_metadata_information_to_prometheus",
                             lambda: add_meta_called.append(True))
         monkeypatch.setattr(exporter, "init_gauges",
                             lambda: init_gauges_called.append(True))
+        monkeypatch.setattr(exporter, "ScannedMetrics", _StubScannedMetrics)
         monkeypatch.setattr(exporter, "start_http_server",
                             lambda port: start_server_called.append(port))
 
@@ -243,4 +252,5 @@ class TestInitPrometheusMonitor:
 
         assert add_meta_called == [True]
         assert init_gauges_called == [True]
+        assert scanned_started == [True]
         assert start_server_called == [exporter.prom_port]

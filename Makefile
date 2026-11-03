@@ -115,25 +115,27 @@ pyclean:
 
 run-single-spyre-exporter: ## Run SPYRE exporter with single-SPYRE pods
 	$(DOCKER) run --pull=missing -u root --name single-spyre-exporter -d \
-	-e NODE_NAME=node1 -p 8000:8000 \
+	-e NODE_NAME=node1 -p 127.0.0.1:8000:8000 \
 	-v ./mock/single-spyre-device-plugins/spyre-config:/tmp/spyre-config:Z \
 	-v ./mock/single-spyre-device-plugins/spyre-metrics:/tmp/spyre-metrics:Z \
 	-v ./mock/single-spyre-device-plugins/metadata:/tmp/spyre-metadata:Z \
 	$(IMAGE)
 	@echo "Waiting for single-spyre-exporter to be ready..."; \
-	for i in $$(seq 1 30); do curl -sf localhost:8000/metrics > /dev/null && break || sleep 5; done
+	for i in $$(seq 1 30); do curl -sf 127.0.0.1:8000/metrics > /dev/null && break || sleep 5; done; \
+	curl -sf 127.0.0.1:8000/metrics > /dev/null || echo "WARNING: single-spyre-exporter is not reachable on 127.0.0.1:8000"
 	@sleep 10
 
 # Need to run the container as root for the Jenkins user to access the mounted files
 run-multi-spyre-exporter: ## Run SPYRE exporter with multi-SPYRE pods
 	$(DOCKER) run --pull=missing -u root --name multi-spyre-exporter -d \
-	-e NODE_NAME=node1 -p 8001:8000 \
+	-e NODE_NAME=node1 -p 127.0.0.1:8001:8000 \
 	-v ./mock/multi-spyre-device-plugins/spyre-config:/tmp/spyre-config:Z \
 	-v ./mock/multi-spyre-device-plugins/spyre-metrics:/tmp/spyre-metrics:Z \
 	-v ./mock/multi-spyre-device-plugins/metadata:/tmp/spyre-metadata:Z \
 	$(IMAGE)
 	@echo "Waiting for multi-spyre-exporter to be ready..."; \
-	for i in $$(seq 1 30); do curl -sf localhost:8001/metrics > /dev/null && break || sleep 5; done
+	for i in $$(seq 1 30); do curl -sf 127.0.0.1:8001/metrics > /dev/null && break || sleep 5; done; \
+	curl -sf 127.0.0.1:8001/metrics > /dev/null || echo "WARNING: multi-spyre-exporter is not reachable on 127.0.0.1:8001"
 	@sleep 10
 
 single-spyre-mock-user: ## Run Single SPYRE User
@@ -154,36 +156,36 @@ mock-delete-new-pod:
 
 exporter-test: run-single-spyre-exporter run-multi-spyre-exporter  ## Unit test for SPYRE exporter
 	@echo "collect metrics"
-	@curl -s localhost:8000/metrics|grep -q 'spyre_info_metadata{Boost="False",DDR_Avail="112.0 GB",DDR_Speed="6400.0 Mbps",DRAM_Freq="800 MHz",Mem="Maker",RPD_Clock="800.0 MHz",SOC_Clock="560.0 MHz",SerialID="SN000001",addr="0000:01:00.0",node="node1"}' || (echo "Failed to get spyre_info_metadata"; $(MAKE) clean-exit)
-	@curl -s localhost:8000/metrics|grep -q 'spyre_info_device{addr="0000:01:00.0",linkspeed="63.02 GB/s",name="SPYRE Device 06a7 (rev 02)",node="node1",numanode="0"}' || (echo "Failed to get spyre_info_device"; $(MAKE) clean-exit)
-	@curl -s localhost:8000/metrics|grep -q 'spyre_info_connection_protocol{dst_addr="0000:02:00.0",node="node1",protocol="P2PDMA",src_addr="0000:01:00.0"}' || (echo "Failed to get spyre_info_connection_protocol"; $(MAKE) clean-exit)
+	@curl -s 127.0.0.1:8000/metrics|grep -q 'spyre_info_metadata{Boost="False",DDR_Avail="112.0 GB",DDR_Speed="6400.0 Mbps",DRAM_Freq="800 MHz",Mem="Maker",RPD_Clock="800.0 MHz",SOC_Clock="560.0 MHz",SerialID="SN000001",addr="0000:01:00.0",node="node1"}' || (echo "Failed to get spyre_info_metadata"; $(MAKE) clean-exit)
+	@curl -s 127.0.0.1:8000/metrics|grep -q 'spyre_info_device{addr="0000:01:00.0",linkspeed="63.02 GB/s",name="SPYRE Device 06a7 (rev 02)",node="node1",numanode="0"}' || (echo "Failed to get spyre_info_device"; $(MAKE) clean-exit)
+	@curl -s 127.0.0.1:8000/metrics|grep -q 'spyre_info_connection_protocol{dst_addr="0000:02:00.0",node="node1",protocol="P2PDMA",src_addr="0000:01:00.0"}' || (echo "Failed to get spyre_info_connection_protocol"; $(MAKE) clean-exit)
 	@echo "METADATA/INFO/DEVICE_CONNECTION_INFO Labels: Passed"
-	@curl -s localhost:8000/metrics|grep -q 'spyre_allocation{namespace="default",node="node1",pod="pod-1",spyre="01.1"}'|| (echo "Failed to get spyre_allocation"; $(MAKE) clean-exit)
+	@curl -s 127.0.0.1:8000/metrics|grep -q 'spyre_allocation{namespace="default",node="node1",pod="pod-1",spyre="01.1"}'|| (echo "Failed to get spyre_allocation"; $(MAKE) clean-exit)
 	@echo "Pod Allocation Label: Passed"
-	@curl -s localhost:8000/metrics|grep -q 'spyre_power_watts{namespace="default",node="node1",pod="pod-1",spyre="01.1",type="vf"}'|| (echo "Failed to get spyre_power_watts 01"; $(MAKE) clean-exit)
-	@curl -s localhost:8000/metrics|grep -q 'spyre_power_watts{namespace="default",node="node1",pod="pod-2",spyre="02.1",type="vf"}'|| (echo "Failed to get spyre_power_watts 02"; $(MAKE) clean-exit)
+	@curl -s 127.0.0.1:8000/metrics|grep -q 'spyre_power_watts{namespace="default",node="node1",pod="pod-1",spyre="01.1",type="vf"}'|| (echo "Failed to get spyre_power_watts 01"; $(MAKE) clean-exit)
+	@curl -s 127.0.0.1:8000/metrics|grep -q 'spyre_power_watts{namespace="default",node="node1",pod="pod-2",spyre="02.1",type="vf"}'|| (echo "Failed to get spyre_power_watts 02"; $(MAKE) clean-exit)
 	@echo "Single-SPYRE: Passed"
-	@curl -s localhost:8001/metrics|grep -q 'spyre_power_watts{namespace="default",node="node1",pod="pod-1",spyre="01.1",type="vf"}'|| (echo "Failed to get spyre_power_watts 01"; $(MAKE) clean-exit)
-	@curl -s localhost:8001/metrics|grep -q 'spyre_power_watts{namespace="default",node="node1",pod="pod-1",spyre="02.1",type="vf"}'|| (echo "Failed to get spyre_power_watts 02"; $(MAKE) clean-exit)
-	@curl -s localhost:8001/metrics|grep -q 'spyre_power_watts{namespace="default",node="node1",pod="pod-2",spyre="03.1",type="vf"}'|| (echo "Failed to get spyre_power_watts 03"; $(MAKE) clean-exit)
-	@curl -s localhost:8001/metrics|grep -q 'spyre_power_watts{namespace="default",node="node1",pod="pod-2",spyre="04.1",type="vf"}'|| (echo "Failed to get spyre_power_watts 04"; $(MAKE) clean-exit)
-	@curl -s localhost:8001/metrics|grep -q 'spyre_allocation{namespace="default",node="node1",pod="pod-3",spyre="05.1"}'|| (echo "Failed to get spyre_allocation of pod-3"; $(MAKE) clean-exit)
-	@curl -s localhost:8001/metrics|grep -q 'spyre_allocation{namespace="default",node="node1",pod="pod-3",spyre="06.1"}'|| (echo "Failed to get spyre_allocation of pod-3"; $(MAKE) clean-exit)
+	@curl -s 127.0.0.1:8001/metrics|grep -q 'spyre_power_watts{namespace="default",node="node1",pod="pod-1",spyre="01.1",type="vf"}'|| (echo "Failed to get spyre_power_watts 01"; $(MAKE) clean-exit)
+	@curl -s 127.0.0.1:8001/metrics|grep -q 'spyre_power_watts{namespace="default",node="node1",pod="pod-1",spyre="02.1",type="vf"}'|| (echo "Failed to get spyre_power_watts 02"; $(MAKE) clean-exit)
+	@curl -s 127.0.0.1:8001/metrics|grep -q 'spyre_power_watts{namespace="default",node="node1",pod="pod-2",spyre="03.1",type="vf"}'|| (echo "Failed to get spyre_power_watts 03"; $(MAKE) clean-exit)
+	@curl -s 127.0.0.1:8001/metrics|grep -q 'spyre_power_watts{namespace="default",node="node1",pod="pod-2",spyre="04.1",type="vf"}'|| (echo "Failed to get spyre_power_watts 04"; $(MAKE) clean-exit)
+	@curl -s 127.0.0.1:8001/metrics|grep -q 'spyre_allocation{namespace="default",node="node1",pod="pod-3",spyre="05.1"}'|| (echo "Failed to get spyre_allocation of pod-3"; $(MAKE) clean-exit)
+	@curl -s 127.0.0.1:8001/metrics|grep -q 'spyre_allocation{namespace="default",node="node1",pod="pod-3",spyre="06.1"}'|| (echo "Failed to get spyre_allocation of pod-3"; $(MAKE) clean-exit)
 	@echo "Multi-SPYRE: Passed"
 	@$(MAKE) mock-new-pod && sleep 10
-	@curl -s localhost:8000/metrics|grep -c 'spyre_power_watts{'|grep -q 3||(echo "Failed to add new pod"; $(MAKE) clean-exit)
-	@curl -s localhost:8000/metrics|grep -q 'spyre_power_watts{namespace="default",node="node1",pod="pod-4",spyre="07.1",type="vf"}'|| (echo "Failed to get spyre_power_watts 01 of new pod"; $(MAKE) clean-exit)
-	@curl -s localhost:8000/metrics|grep -q 'spyre_allocation{namespace="default",node="node1",pod="pod-4",spyre="07.1"}'|| (echo "Failed to get spyre_allocation of new pod"; $(MAKE) clean-exit)
+	@curl -s 127.0.0.1:8000/metrics|grep -c 'spyre_power_watts{'|grep -q 3||(echo "Failed to add new pod"; $(MAKE) clean-exit)
+	@curl -s 127.0.0.1:8000/metrics|grep -q 'spyre_power_watts{namespace="default",node="node1",pod="pod-4",spyre="07.1",type="vf"}'|| (echo "Failed to get spyre_power_watts 01 of new pod"; $(MAKE) clean-exit)
+	@curl -s 127.0.0.1:8000/metrics|grep -q 'spyre_allocation{namespace="default",node="node1",pod="pod-4",spyre="07.1"}'|| (echo "Failed to get spyre_allocation of new pod"; $(MAKE) clean-exit)
 	@echo "Add new pod: Passed"
 	@$(MAKE) mock-delete-new-pod && sleep 10
-	@curl -s localhost:8000/metrics|grep -c 'spyre_power_watts{'|grep -q 2||(echo "Failed to remove metric file label when pod is deleted"; $(MAKE) clean-exit)
-	@curl -s localhost:8000/metrics|grep -c 'spyre_allocation{.*spyre='|grep -q 2||(echo "Failed to remove allocation label when pod is deleted"; $(MAKE) clean-exit)
+	@curl -s 127.0.0.1:8000/metrics|grep -c 'spyre_power_watts{'|grep -q 2||(echo "Failed to remove metric file label when pod is deleted"; $(MAKE) clean-exit)
+	@curl -s 127.0.0.1:8000/metrics|grep -c 'spyre_allocation{.*spyre='|grep -q 2||(echo "Failed to remove allocation label when pod is deleted"; $(MAKE) clean-exit)
 	@echo "Delete new pod: Passed"
 	@$(MAKE) exporter-cleanup
 
 metrics: docker-build ## Run mock example and generate METRICS.md
 	@$(MAKE) run-single-spyre-exporter
-	@curl localhost:8000 > prom.out;./hack/prom-to-markdown.bash prom.out > METRICS.md;rm prom.out
+	@curl 127.0.0.1:8000 > prom.out;./hack/prom-to-markdown.bash prom.out > METRICS.md;rm prom.out
 	@$(DOCKER) kill single-spyre-exporter || true
 	@$(DOCKER) rm single-spyre-exporter || true
 
