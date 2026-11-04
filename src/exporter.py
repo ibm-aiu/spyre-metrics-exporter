@@ -5,7 +5,7 @@
 import os
 import json
 import time
-from spyremetrics_collector import init_gauges, spyre_map_info, pod_spyre_gauge, spyre_metrics_guages
+from spyremetrics_collector import init_gauges, spyre_map_info, pod_spyre_gauge, spyre_metrics_guages, ScannedMetrics
 from pcie import PCIE_GAUGE, get_pcie_metrics, PCIeInfo
 from topology import metadata_gauge, info_gauge, connection_info_gauge, parse_spyre_topology
 from prometheus_client import start_http_server, Info
@@ -22,13 +22,32 @@ topology_file_path = "/tmp/spyre-metadata/topo.json"
 # metrics_info_collection is a collection mapping uuid value to spyre_map_info
 metrics_info_collection = dict()
 
+# ScannedMetrics publishes metric files that the config-driven collection above
+# cannot see; it is inert unless SPYRE_METRIC_PATH is set.
+scanned_metrics = None
+
+# Snapshot of {busid: (pod_name, pod_namespace)} owned by the config-driven
+# collector. It is rebuilt by traverse_for_spyre_configs() and read by the
+# ScannedMetrics thread, which must not iterate metrics_info_collection while
+# the main loop mutates it.
+config_owned_metric_labels = {}
+
+def config_owned_metrics():
+    """
+    config_owned_metrics returns the {busid: (pod_name, pod_namespace)} published by the config-driven collector.
+
+    Only entries whose metrics were successfully configured are included, so a
+    pod whose config disables metrics does not hide its devices from discovery.
+    """
+    return config_owned_metric_labels
+
 def traverse_for_spyre_configs():
     """
     traverse_for_spyre_configs traverses spyre-config folder and initializes spyre_map_info for each uuid (pod).
 
     If the config file has been deleted, the corresponding info will be also cleared and removed from the collection.
     """
-    global metrics_info_collection
+    global metrics_info_collection, config_owned_metric_labels
     curr_uuids = [f for f in os.listdir(config_top_path) if os.path.isdir(os.path.join(config_top_path, f))]
     for uuid in curr_uuids:
         if uuid not in metrics_info_collection:
@@ -42,6 +61,12 @@ def traverse_for_spyre_configs():
             print(f"remove deleted info {info.pod_namespace}/{info.pod_name}")
             metrics_info_collection[uuid].clear()
             del metrics_info_collection[uuid]
+    config_owned_metric_labels = {
+        spyre_id: (info.pod_name, info.pod_namespace)
+        for info in metrics_info_collection.values()
+        for spyre_id, metrics in info.spyre_id_metrics_map.items()
+        if metrics is not None
+    }
 
 pcie_info_collection = dict()
 
@@ -68,13 +93,15 @@ def update_pcie():
 
 def init_prometheus_monitor():
     print("Intitating prometheus monitor...")
-    global gauges
+    global gauges, scanned_metrics
     add_metadata_information_to_prometheus()
     init_gauges()
     for gauge in spyre_metrics_guages.values():
         gauges.append(gauge)
     gauges.append(pod_spyre_gauge)
     gauges.append(PCIE_GAUGE)
+    scanned_metrics = ScannedMetrics(config_owned_provider=config_owned_metrics)
+    scanned_metrics.start()
     start_http_server(prom_port)
 
 def add_metadata_information_to_prometheus():
